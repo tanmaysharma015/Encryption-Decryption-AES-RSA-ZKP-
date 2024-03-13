@@ -1,11 +1,11 @@
 import simpy
 import networkx as nx
-import matplotlib.pyplot as plt
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 import base64
 import hashlib
+import matplotlib.pyplot as plt
 
 # Function to generate RSA key pair
 def generate_rsa_key_pair():
@@ -90,10 +90,15 @@ def verify_zkp(secret, challenge, proof):
     expected_proof = hashlib.sha256(secret + challenge).digest()
     return proof == expected_proof
 
-# Function to visualize the network graph
-def visualize_network(graph):
-    pos = nx.spring_layout(graph)
-    nx.draw(graph, pos, with_labels=True, font_weight='bold')
+# Function to print the success rates and visualize them with Matplotlib
+def print_success_rates(success_rates):
+    plt.figure(figsize=(10, 6))
+    for message, rate in success_rates.items():
+        print(f"{message}: {rate}")
+        plt.barh(message, rate)
+    plt.xlabel('Success Rate')
+    plt.ylabel('Messages')
+    plt.title('Success Rates')
     plt.show()
 
 # Function to simulate the transmission of encrypted packets through a network
@@ -109,6 +114,8 @@ def network_simulation(env, sender, receiver, encrypted_packet, graph):
 
 # Function to simulate the transmission and measure the effectiveness of ZKP
 def simulate_transmission(env, graph, use_zkp=True):
+    exit_messages = {}
+
     # Key Generation
     system2_rsa_key_pair = generate_rsa_key_pair()
     system1_rsa_key_pair = generate_rsa_key_pair()  # Added system1_rsa_key_pair definition
@@ -123,7 +130,7 @@ def simulate_transmission(env, graph, use_zkp=True):
 
     # Bob verifies the zero-knowledge proof
     if verify_zkp(symmetric_key, challenge, zkp_proof):
-        print("Zero-Knowledge Proof Verified: Key Exchange Successful")
+        exit_messages["Zero-Knowledge Proof Verified: Key Exchange Successful"] = exit_messages.get("Zero-Knowledge Proof Verified: Key Exchange Successful", 0) + 1
     else:
         raise ValueError("Zero-Knowledge Proof Verification Failed: Potential Security Threat")
 
@@ -165,27 +172,21 @@ def simulate_transmission(env, graph, use_zkp=True):
 
         # Measure effectiveness of ZKP
         if use_zkp:
-            print("Transmission with Zero-Knowledge Proof (ZKP) is effective.")
+            exit_messages["Transmission with Zero-Knowledge Proof (ZKP) is effective."] = exit_messages.get("Transmission with Zero-Knowledge Proof (ZKP) is effective.", 0) + 1
         else:
-            print("Transmission without Zero-Knowledge Proof (ZKP) is vulnerable to potential threats.")
+            exit_messages["Transmission without Zero-Knowledge Proof (ZKP) is vulnerable to potential threats."] = exit_messages.get("Transmission without Zero-Knowledge Proof (ZKP) is vulnerable to potential threats.", 0) + 1
+
+        print_success_rates(exit_messages)
 
     except ValueError as e:
-        print(f"Error: {e}")
+        exit_messages[f"Error: {e}"] = exit_messages.get(f"Error: {e}", 0) + 1
+        print_success_rates(exit_messages)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
+        exit_messages[f"An unexpected error occurred: {e}"] = exit_messages.get(f"An unexpected error occurred: {e}", 0) + 1
+        print_success_rates(exit_messages)
 
-# Visualize the initial network graph
+# Run simulation
+env = simpy.Environment()
 G = nx.DiGraph()
 G.add_nodes_from(["System 2"])
-visualize_network(G)
-
-# Run the client side simulation
-simulate_transmission(simpy.Environment(), G, use_zkp=True)
-
-# Reset the graph for the next simulation
-G.clear()
-G.add_nodes_from(["System 2"])
-visualize_network(G)
-
-# Run the client side simulation without ZKP
-simulate_transmission(simpy.Environment(), G, use_zkp=False)
+simulate_transmission(env, G)

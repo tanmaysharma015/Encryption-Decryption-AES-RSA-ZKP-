@@ -6,6 +6,7 @@ from Crypto.Random import get_random_bytes
 import base64
 import hashlib
 import matplotlib.pyplot as plt
+import random
 
 # Function to generate RSA key pair
 def generate_rsa_key_pair():
@@ -113,8 +114,9 @@ def network_simulation(env, sender, receiver, encrypted_packet, graph):
     graph.add_edge(sender, receiver)
 
 # Function to simulate the transmission and measure the effectiveness of ZKP
-def simulate_transmission(env, graph, use_zkp=True):
-    exit_messages = {}
+def simulate_transmission(env, graph, use_zkp=True, exit_messages=None):
+    if exit_messages is None:
+        exit_messages = {}
 
     # Key Generation
     system2_rsa_key_pair = generate_rsa_key_pair()
@@ -128,10 +130,16 @@ def simulate_transmission(env, graph, use_zkp=True):
     challenge = generate_zkp_challenge()
     zkp_proof = generate_zkp(symmetric_key, challenge)
 
-    # Bob verifies the zero-knowledge proof
-    if verify_zkp(symmetric_key, challenge, zkp_proof):
-        exit_messages["Zero-Knowledge Proof Verified: Key Exchange Successful"] = exit_messages.get("Zero-Knowledge Proof Verified: Key Exchange Successful", 0) + 1
+    # Randomly determine if ZKP is successful
+    if random.random() < 0.5:  # Adjust the probability as needed
+        zkp_verified = True
     else:
+        zkp_verified = False
+
+    # Bob verifies the zero-knowledge proof
+    if use_zkp and zkp_verified:
+        exit_messages["Zero-Knowledge Proof Verified: Key Exchange Successful"] = exit_messages.get("Zero-Knowledge Proof Verified: Key Exchange Successful", 0) + 1
+    elif use_zkp and not zkp_verified:
         raise ValueError("Zero-Knowledge Proof Verification Failed: Potential Security Threat")
 
     # Bob decrypts the symmetric key using his private key
@@ -168,7 +176,7 @@ def simulate_transmission(env, graph, use_zkp=True):
         print("Decrypted Data Packet:", aes_decrypt(encrypted_data_packet, decrypted_symmetric_key, aes_mode, iv, tag).decode(errors='replace'))
 
         # Packet Transmission Simulation
-        env.run(until=5)  # Run the simulation for a duration of 5 time units
+        env.run(until=env.now + 5)  # Run the simulation for a duration of 5 time units
 
         # Measure effectiveness of ZKP
         if use_zkp:
@@ -185,8 +193,28 @@ def simulate_transmission(env, graph, use_zkp=True):
         exit_messages[f"An unexpected error occurred: {e}"] = exit_messages.get(f"An unexpected error occurred: {e}", 0) + 1
         print_success_rates(exit_messages)
 
+# Function to simulate multiple transmission sessions with and without ZKP and compare the success rates
+def simulate_multiple_sessions(env, graph, num_sessions):
+    for session in range(num_sessions):
+        print(f"\nSession {session + 1}:")
+        exit_messages_with_zkp = {}
+        exit_messages_without_zkp = {}
+        try:
+            env = simpy.Environment()
+            simulate_transmission(env, graph, True, exit_messages_with_zkp)  # With ZKP
+        except Exception as e:
+            print(f"Error in session {session + 1} with ZKP: {e}")
+
+        try:
+            env = simpy.Environment()
+            simulate_transmission(env, graph, False, exit_messages_without_zkp)  # Without ZKP
+        except Exception as e:
+            print(f"Error in session {session + 1} without ZKP: {e}")
+
 # Run simulation
-env = simpy.Environment()
 G = nx.DiGraph()
 G.add_nodes_from(["System 2"])
-simulate_transmission(env, G)
+
+# Example usage:
+num_sessions = 10  # You can adjust the number of sessions as needed
+simulate_multiple_sessions(simpy.Environment(), G, num_sessions)

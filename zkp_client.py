@@ -10,7 +10,10 @@ import random
 
 # Function to generate RSA key pair
 def generate_rsa_key_pair():
-    return RSA.generate(2048)
+    key_size = 2048  # Default key size
+    rsa_key_pair = RSA.generate(key_size)
+    print(f"RSA key size: {key_size} bits")  # Print RSA key size
+    return rsa_key_pair
 
 # Function to encrypt using RSA
 def rsa_encrypt(plaintext, public_key):
@@ -25,8 +28,10 @@ def rsa_decrypt(ciphertext, private_key):
     return plaintext
 
 # Function to generate AES key
-def generate_aes_key():
-    return get_random_bytes(16)  # AES-128 key size
+def generate_aes_key(key_size=128):
+    if key_size not in [128, 192, 256]:
+        raise ValueError("AES key size must be 128, 192, or 256 bits")
+    return get_random_bytes(key_size // 8)  # Convert bits to bytes
 
 # Function to encrypt using AES
 def aes_encrypt(message, key, mode):
@@ -113,10 +118,16 @@ def network_simulation(env, sender, receiver, encrypted_packet, graph):
     # Update the network graph to show the transmission
     graph.add_edge(sender, receiver)
 
+# Function to print the mode of operation used for AES encryption
+def print_aes_mode(mode):
+    print(f"AES mode: {mode}")
+
 # Function to simulate the transmission and measure the effectiveness of ZKP
-def simulate_transmission(env, graph, use_zkp=True, exit_messages=None):
+def simulate_transmission(env, graph, use_zkp=True, exit_messages=None, attacker_success=None):
     if exit_messages is None:
         exit_messages = {}
+    if attacker_success is None:
+        attacker_success = []
 
     # Key Generation
     system2_rsa_key_pair = generate_rsa_key_pair()
@@ -130,17 +141,11 @@ def simulate_transmission(env, graph, use_zkp=True, exit_messages=None):
     challenge = generate_zkp_challenge()
     zkp_proof = generate_zkp(symmetric_key, challenge)
 
-    # Randomly determine if ZKP is successful
-    if random.random() < 0.5:  # Adjust the probability as needed
-        zkp_verified = True
-    else:
-        zkp_verified = False
-
     # Bob verifies the zero-knowledge proof
-    if use_zkp and zkp_verified:
+    if use_zkp and verify_zkp(symmetric_key, challenge, zkp_proof):
         exit_messages["Zero-Knowledge Proof Verified: Key Exchange Successful"] = exit_messages.get("Zero-Knowledge Proof Verified: Key Exchange Successful", 0) + 1
-    elif use_zkp and not zkp_verified:
-        raise ValueError("Zero-Knowledge Proof Verification Failed: Potential Security Threat")
+    elif use_zkp:
+        exit_messages["Zero-Knowledge Proof Verification Failed: Potential Security Threat"] = exit_messages.get("Zero-Knowledge Proof Verification Failed: Potential Security Threat", 0) + 1
 
     # Bob decrypts the symmetric key using his private key
     decrypted_symmetric_key = rsa_decrypt(encrypted_symmetric_key, system1_rsa_key_pair)
@@ -165,6 +170,7 @@ def simulate_transmission(env, graph, use_zkp=True, exit_messages=None):
 
     # Choose AES mode
     aes_mode = input("Choose AES mode (ECB, CBC, GCM): ").upper()
+    print_aes_mode(aes_mode)  # Print AES mode
 
     try:
         # Data Packet Encryption: Alice encrypts the data packet with the shared symmetric key
@@ -184,6 +190,9 @@ def simulate_transmission(env, graph, use_zkp=True, exit_messages=None):
         else:
             exit_messages["Transmission without Zero-Knowledge Proof (ZKP) is vulnerable to potential threats."] = exit_messages.get("Transmission without Zero-Knowledge Proof (ZKP) is vulnerable to potential threats.", 0) + 1
 
+        # Attacker attempts to intercept and decrypt the message
+        attacker_success.append(random.random() < 0.5)  # Randomly determine attacker success
+
         print_success_rates(exit_messages)
 
     except ValueError as e:
@@ -199,22 +208,28 @@ def simulate_multiple_sessions(env, graph, num_sessions):
         print(f"\nSession {session + 1}:")
         exit_messages_with_zkp = {}
         exit_messages_without_zkp = {}
+        attacker_success_with_zkp = []
+        attacker_success_without_zkp = []
         try:
             env = simpy.Environment()
-            simulate_transmission(env, graph, True, exit_messages_with_zkp)  # With ZKP
+            simulate_transmission(env, graph, True, exit_messages_with_zkp, attacker_success_with_zkp)  # With ZKP
         except Exception as e:
             print(f"Error in session {session + 1} with ZKP: {e}")
 
         try:
             env = simpy.Environment()
-            simulate_transmission(env, graph, False, exit_messages_without_zkp)  # Without ZKP
+            simulate_transmission(env, graph, False, exit_messages_without_zkp, attacker_success_without_zkp)  # Without ZKP
         except Exception as e:
             print(f"Error in session {session + 1} without ZKP: {e}")
+
+        # Print attacker success rates
+        print(f"Attacker Success Rate (with ZKP): {sum(attacker_success_with_zkp) / len(attacker_success_with_zkp)}")
+        print(f"Attacker Success Rate (without ZKP): {sum(attacker_success_without_zkp) / len(attacker_success_without_zkp)}")
 
 # Run simulation
 G = nx.DiGraph()
 G.add_nodes_from(["System 2"])
 
 # Example usage:
-num_sessions = 10  # You can adjust the number of sessions as needed
+num_sessions = 2  # You can adjust the number of sessions as needed
 simulate_multiple_sessions(simpy.Environment(), G, num_sessions)

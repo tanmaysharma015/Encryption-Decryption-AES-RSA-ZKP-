@@ -5,7 +5,6 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 import base64
 import hashlib
-import matplotlib.pyplot as plt
 import random
 
 # Function to generate RSA key pair
@@ -84,7 +83,7 @@ def aes_decrypt(ciphertext, key, mode, iv=None, tag=None):
 
 # Function to generate a zero-knowledge proof challenge
 def generate_zkp_challenge():
-    return get_random_bytes(16)
+    return get_random_bytes(64)  # Increase the challenge size for better security
 
 # Function to generate a zero-knowledge proof
 def generate_zkp(secret, challenge):
@@ -96,16 +95,9 @@ def verify_zkp(secret, challenge, proof):
     expected_proof = hashlib.sha256(secret + challenge).digest()
     return proof == expected_proof
 
-# Function to print the success rates and visualize them with Matplotlib
-def print_success_rates(success_rates):
-    plt.figure(figsize=(10, 6))
-    for message, rate in success_rates.items():
-        print(f"{message}: {rate}")
-        plt.barh(message, rate)
-    plt.xlabel('Success Rate')
-    plt.ylabel('Messages')
-    plt.title('Success Rates')
-    plt.show()
+# Function to print the mode of operation used for AES encryption
+def print_aes_mode(mode):
+    print(f"AES mode: {mode}")
 
 # Function to simulate the transmission of encrypted packets through a network
 def network_simulation(env, sender, receiver, encrypted_packet, graph):
@@ -117,10 +109,6 @@ def network_simulation(env, sender, receiver, encrypted_packet, graph):
 
     # Update the network graph to show the transmission
     graph.add_edge(sender, receiver)
-
-# Function to print the mode of operation used for AES encryption
-def print_aes_mode(mode):
-    print(f"AES mode: {mode}")
 
 # Function to simulate the transmission and measure the effectiveness of ZKP
 def simulate_transmission(env, graph, use_zkp=True, exit_messages=None, attacker_success=None):
@@ -193,23 +181,21 @@ def simulate_transmission(env, graph, use_zkp=True, exit_messages=None, attacker
         # Attacker attempts to intercept and decrypt the message
         attacker_success.append(random.random() < 0.5)  # Randomly determine attacker success
 
-        print_success_rates(exit_messages)
-
     except ValueError as e:
         exit_messages[f"Error: {e}"] = exit_messages.get(f"Error: {e}", 0) + 1
-        print_success_rates(exit_messages)
     except Exception as e:
         exit_messages[f"An unexpected error occurred: {e}"] = exit_messages.get(f"An unexpected error occurred: {e}", 0) + 1
-        print_success_rates(exit_messages)
 
 # Function to simulate multiple transmission sessions with and without ZKP and compare the success rates
 def simulate_multiple_sessions(env, graph, num_sessions):
+    attacker_success_with_zkp = []
+    attacker_success_without_zkp = []
+
     for session in range(num_sessions):
         print(f"\nSession {session + 1}:")
         exit_messages_with_zkp = {}
         exit_messages_without_zkp = {}
-        attacker_success_with_zkp = []
-        attacker_success_without_zkp = []
+
         try:
             env = simpy.Environment()
             simulate_transmission(env, graph, True, exit_messages_with_zkp, attacker_success_with_zkp)  # With ZKP
@@ -222,9 +208,13 @@ def simulate_multiple_sessions(env, graph, num_sessions):
         except Exception as e:
             print(f"Error in session {session + 1} without ZKP: {e}")
 
-        # Print attacker success rates
+        # Print attacker success rates after each session
         print(f"Attacker Success Rate (with ZKP): {sum(attacker_success_with_zkp) / len(attacker_success_with_zkp)}")
         print(f"Attacker Success Rate (without ZKP): {sum(attacker_success_without_zkp) / len(attacker_success_without_zkp)}")
+
+    # Print overall attacker success rates
+    print(f"\nOverall Attacker Success Rate (with ZKP): {sum(attacker_success_with_zkp) / num_sessions}")
+    print(f"Overall Attacker Success Rate (without ZKP): {sum(attacker_success_without_zkp) / num_sessions}")
 
 # Run simulation
 G = nx.DiGraph()

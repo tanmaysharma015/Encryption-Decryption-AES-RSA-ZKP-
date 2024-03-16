@@ -1,5 +1,6 @@
 import simpy
 import networkx as nx
+import matplotlib.pyplot as plt
 from Crypto.Cipher import AES, PKCS1_OAEP
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
@@ -181,12 +182,15 @@ def simulate_transmission(env, graph, use_zkp=True, exit_messages=None, attacker
         # Attacker attempts to intercept and decrypt the message
         attacker_success.append(random.random() < 0.5)  # Randomly determine attacker success
 
+        # Print attacker success rate for the session
+        print(f"Attacker Success Rate: {sum(attacker_success) / len(attacker_success)}")
+
     except ValueError as e:
         exit_messages[f"Error: {e}"] = exit_messages.get(f"Error: {e}", 0) + 1
     except Exception as e:
         exit_messages[f"An unexpected error occurred: {e}"] = exit_messages.get(f"An unexpected error occurred: {e}", 0) + 1
 
-# Function to simulate multiple transmission sessions with and without ZKP and compare the success rates
+# Run simulation
 def simulate_multiple_sessions(env, graph, num_sessions):
     attacker_success_with_zkp = []
     attacker_success_without_zkp = []
@@ -212,14 +216,19 @@ def simulate_multiple_sessions(env, graph, num_sessions):
         print(f"Attacker Success Rate (with ZKP): {sum(attacker_success_with_zkp) / len(attacker_success_with_zkp)}")
         print(f"Attacker Success Rate (without ZKP): {sum(attacker_success_without_zkp) / len(attacker_success_without_zkp)}")
 
-    # Print overall attacker success rates
-    print(f"\nOverall Attacker Success Rate (with ZKP): {sum(attacker_success_with_zkp) / num_sessions}")
-    print(f"Overall Attacker Success Rate (without ZKP): {sum(attacker_success_without_zkp) / num_sessions}")
+    # Plotting attacker success rates
+    plt.plot(attacker_success_with_zkp, color='blue', label='With ZKP')
+    plt.plot(attacker_success_without_zkp, color='yellow', label='Without ZKP')
+    plt.xlabel('Session')
+    plt.ylabel('Attacker Success Rate')
+    plt.title('Attacker Success Rate in Each Session')
+    plt.legend()
+    plt.show()
 
 # Run simulation
 G = nx.DiGraph()
 G.add_nodes_from(["System 2"])
 
 # Example usage:
-num_sessions = 2  # You can adjust the number of sessions as needed
+num_sessions = 3  # You can adjust the number of sessions as needed
 simulate_multiple_sessions(simpy.Environment(), G, num_sessions)

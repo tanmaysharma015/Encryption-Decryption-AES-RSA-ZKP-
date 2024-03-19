@@ -7,6 +7,7 @@ from Crypto.Random import get_random_bytes
 import base64
 import hashlib
 import random
+from monitor_system import monitor_system  # Import monitor_system module
 
 # Function to generate RSA key pair
 def generate_rsa_key_pair():
@@ -113,6 +114,10 @@ def network_simulation(env, sender, receiver, encrypted_packet, graph):
 
 # Function to simulate the transmission and measure the effectiveness of ZKP
 def simulate_transmission(env, graph, use_zkp=True, exit_messages=None, attacker_success=None):
+
+    # Initialize monitor
+    monitor = env.process(monitor_system(env))
+
     if exit_messages is None:
         exit_messages = {}
     if attacker_success is None:
@@ -218,7 +223,7 @@ def simulate_multiple_sessions(env, graph, num_sessions):
 
     # Plotting attacker success rates
     plt.plot(attacker_success_with_zkp, color='blue', label='With ZKP')
-    plt.plot(attacker_success_without_zkp, color='yellow', label='Without ZKP')
+    plt.plot(attacker_success_without_zkp, color='orange', label='Without ZKP')
     plt.xlabel('Session')
     plt.ylabel('Attacker Success Rate')
     plt.title('Attacker Success Rate in Each Session')
